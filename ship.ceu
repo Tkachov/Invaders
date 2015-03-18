@@ -1,0 +1,114 @@
+#ifndef SHIP
+#define SHIP
+
+#include "common.ceu"
+#include "bullet.ceu"
+
+class Ship with
+    var _SDL_Rect rct;
+    var _SDL_Renderer[] ren;
+    var _SDL_Texture[] tex;
+    var _SDL_Texture[] bullet_tex;
+    var _TTF_Font[] fnt;
+
+    event void collided;
+
+    pool Bullet[3] bullets;
+do
+    this.rct.w = 24;
+    this.rct.h = 24;
+
+    //private:
+    var int velocity = 150;    
+    var float fx = rct.x;
+    var int lives = 3;
+    var int collision = 0;
+
+    //text label
+    var _char[2] str;
+    var _SDL_Texture* str_tex;
+    var _SDL_Rect str_r;
+    var _SDL_Color clr;
+    clr.r = 255; clr.g = 255; clr.b = 255;
+    str[1] = 0;
+    str_r.x = 10;
+    str_r.y = 10;
+    str_r.w = 12;
+    str_r.h = 16;
+
+    par/or do
+        var s32 dt;
+        
+        var int mx = 0;
+        var int my = 0;
+
+        every dt in SDL_DT do
+            if(collision == 0) then
+                _SDL_GetMouseState(&mx, &my);
+
+                if(_abs(mx-fx)>=1) then
+                    if(mx > fx) then fx = fx + (float)(velocity*dt)/1000;
+                                else fx = fx - (float)(velocity*dt)/1000; end
+                end
+            end
+
+            if(fx > RIGHT_BORDER - rct.w) then fx = RIGHT_BORDER - rct.w; end
+            if(fx < LEFT_BORDER) then fx = LEFT_BORDER; end
+            rct.x = fx;
+        end
+    with
+        loop do
+            await this.collided;
+            if(collision == 0) then
+                fx = (WIN_WIDTH-24)/2;
+                lives = lives-1;
+                collision = 20;
+            end
+            if(lives<0) then break; end
+        end
+    with
+        loop do
+            var _SDL_MouseButtonEvent* but = await SDL_MOUSEBUTTONDOWN;
+            if but:button == _SDL_BUTTON_LEFT and collision==0 then
+                spawn Bullet in bullets with
+                    this.vel   = -150;
+                    this.rct.x = rct.x + 8;
+                    this.rct.y = rct.y;
+                    this.ren   = ren;
+                    this.tex = bullet_tex;
+                end;
+            end
+
+        end
+    with
+        every 50ms do
+            if(collision > 0) then
+                collision = collision - 1;
+            else 
+                if(lives<=0) then break; end
+            end
+        end
+    with   
+        every SDL_REDRAW do            
+            if(collision%2 == 0) then _SDL_RenderCopy(ren, tex, null, &rct); end
+
+            //draw lives
+        
+            str[0] = '0' + lives;
+            if(lives < 0) then str[0] = '0'; end
+            str_r.x = rct.x + rct.w + 4;
+            str_r.y = rct.y + rct.h/2 - 6;
+            
+            var _SDL_Surface* sfc;
+            finalize sfc = _TTF_RenderText_Blended(fnt, str, clr);
+            with _SDL_FreeSurface(sfc); end
+
+            finalize str_tex = _SDL_CreateTextureFromSurface(ren, sfc);
+            with _SDL_DestroyTexture(str_tex); end
+
+            if(str_tex) then _SDL_RenderCopy(ren, str_tex, null, &str_r); end
+        end
+    end
+end
+
+#endif

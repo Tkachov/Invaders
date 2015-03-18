@@ -1,0 +1,147 @@
+#include "common.ceu"
+#include "bullet.ceu"
+#include "enemy.ceu"
+#include "ship.ceu"
+#include "utils.ceu"
+
+#ifndef ALL
+    var _SDL_Window* win;
+    var _SDL_Renderer[] ren;
+
+    finalize win = _SDL_CreateWindow("Invaders",
+                                    _SDL_WINDOWPOS_CENTERED, _SDL_WINDOWPOS_CENTERED,
+                                    WIN_WIDTH, WIN_HEIGHT,
+                                    _SDL_WINDOW_SHOWN);
+    with _SDL_DestroyWindow(win); end
+
+    finalize ren = _SDL_CreateRenderer(win, -1, 0);
+    with _SDL_DestroyRenderer(ren); end
+#else
+    _SDL_SetWindowTitle(win, "40k trails");
+#endif
+
+//// LOAD RESOURCES
+
+var _SDL_Texture[]
+                    t_enemy_0, t_enemy_1,
+                    t_ship,
+                    t_bullet;
+
+var _Mix_Chunk[] s_music;
+
+var _TTF_Font[] f_Deutsch;
+
+finalize t_enemy_0 = _IMG_LoadTexture(ren, "enemy_0.png");
+with _SDL_DestroyTexture(t_enemy_0); end
+
+finalize t_enemy_1 = _IMG_LoadTexture(ren, "enemy_1.png");
+with _SDL_DestroyTexture(t_enemy_1); end
+
+finalize t_ship = _IMG_LoadTexture(ren, "ship.png");
+with _SDL_DestroyTexture(t_ship); end
+
+finalize t_bullet = _IMG_LoadTexture(ren, "bullet.png");
+with _SDL_DestroyTexture(t_bullet); end
+
+_Mix_OpenAudio(22050, _AUDIO_S16SYS, 2, 4096);
+finalize with _Mix_CloseAudio(); end
+
+finalize s_music = _Mix_LoadWAV("IMD8b.wav");
+with _Mix_FreeChunk(s_music); end
+
+_TTF_Init();
+finalize with _TTF_Quit(); end
+
+finalize f_Deutsch = _TTF_OpenFont("Deutsch.ttf", 12);
+with _TTF_CloseFont(f_Deutsch); end
+
+//// MAIN LOOP
+
+par/or do
+    await SDL_QUIT;
+with
+    var _SDL_Rect bg;
+    bg.x = 0;
+    bg.y = 0;
+    bg.w = WIN_WIDTH;
+    bg.h = WIN_HEIGHT;
+
+    every SDL_REDRAW do
+        _SDL_SetRenderDrawColor(ren, 0, 0, 0, 0xFF);
+        _SDL_RenderFillRect(ren, &bg);
+    end
+with
+    pool Enemy[20] enemies;
+    loop i in 20 do
+        spawn Enemy in enemies with            
+            this.rct.x = 40 + (i%5)*38 + _rand()%3 - 1;
+            this.rct.y = 10 + (i/5)*30 + _rand()%2;
+            this.ren   = ren;
+            this.t0 = t_enemy_0;
+            this.t1 = t_enemy_1;
+        end;
+    end
+
+    var Ship ship;
+    ship.rct.x = (WIN_WIDTH - 24)/2;
+    ship.rct.y = WIN_HEIGHT-40;
+    ship.ren = ren;
+    ship.tex = t_ship;
+    ship.bullet_tex = t_bullet;
+    ship.fnt = f_Deutsch;
+
+    par do
+        every 100ms do
+            loop (Enemy*)enemy in enemies do                
+                loop (Bullet*)blt in ship.bullets do                
+                    if(intersect(&blt:rct, &enemy:rct)) then
+                        emit blt:collided;
+                        emit enemy:collided;
+                    end
+                end
+
+                if(intersect(&ship.rct, &enemy:rct) or enemy:rct.y >= WIN_HEIGHT) then
+                    emit ship.collided;
+                    emit enemy:collided;
+                end
+            end
+        end
+    with
+        every 3s do
+            loop i in 5 do
+                spawn Enemy in enemies with
+                    this.rct.x = 40 + (i%5)*38 + _rand()%3 - 1;
+                    this.rct.y = 10 + _rand()%2;
+                    this.ren   = ren;
+                    this.t0 = t_enemy_0;
+                    this.t1 = t_enemy_1;
+                end;
+            end;
+        end
+    end
+with
+    loop do
+        await SDL_REDRAW;
+        _SDL_RenderPresent(ren);
+        _printf("redraw\n");
+    end
+with
+    //play on repeat
+    _Mix_PlayChannel(-1, s_music, 0);
+    every 70s do _Mix_PlayChannel(-1, s_music, 0); end
+with
+    //FPS
+    loop do
+        var int c = 0;
+        par/or do
+            every SDL_REDRAW do
+                c = c + 1;
+            end
+        with
+            await 1s;
+        end
+        _printf("[FPS=%d]\n", c);
+    end
+end
+
+escape 0;

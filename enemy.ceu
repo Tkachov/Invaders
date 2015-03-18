@@ -1,0 +1,38 @@
+#ifndef ENEMY
+#define ENEMY
+
+#include "common.ceu"
+
+class Enemy with
+    var _SDL_Rect rct;
+    var _SDL_Renderer[] ren;
+    var _SDL_Texture[] t0, t1;    
+    event void collided;
+do
+    this.rct.w = 24;
+    this.rct.h = 24;
+    
+    var int index = _rand()%2;
+    var int y = rct.y;
+
+    par/or do
+        await SDL_QUIT;
+        every 100ms do
+            index = (index+1)%2;
+        end
+    with
+        every 50ms do
+            rct.y = rct.y + 1;
+        end
+    with
+        await this.collided;
+    with        
+        every SDL_REDRAW do
+            var _SDL_Texture[] t = t0;
+            if(index==1) then t = t1; end
+            _SDL_RenderCopy(ren, t, null, &rct);
+        end
+    end
+end
+
+#endif

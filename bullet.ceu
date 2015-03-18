@@ -1,0 +1,37 @@
+#ifndef BULLET
+#define BULLET
+
+#include "common.ceu"
+
+class Bullet with
+    var _SDL_Rect  rct;
+    var int        vel;
+    var _SDL_Renderer[] ren;
+    var _SDL_Texture[] tex;
+    event void collided;
+do
+    this.rct.w = 8;
+    this.rct.h = 8;
+
+    var int y = rct.y;
+
+    par/or do    
+        var s32 dt;
+        var float fy = y;
+
+        every dt in SDL_DT do
+            fy = fy + (float)(this.vel*dt)/1000;
+            rct.y = fy;
+
+            if rct.y < -10 then break; end
+        end
+    with
+        await this.collided;
+    with
+        every SDL_REDRAW do
+            _SDL_RenderCopy(ren, tex, null, &rct);
+        end
+    end
+end
+
+#endif
